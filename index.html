@@ -234,6 +234,11 @@ body.summary .tabs,body.summary main>section:not(#sum){display:none}
 .rkh b{display:block;font-size:17px}.rkh small,.rnx{color:var(--mu);font-size:13px}
 .rb{flex:none;color:#111;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:4px 10px}
 .rbar{height:8px;background:var(--bg);border-radius:999px;overflow:hidden;margin:10px 0 6px}.rbar i{display:block;height:100%;border-radius:999px}
+.hint.warn{color:var(--ac);font-weight:600}
+.plsel{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 4px}
+.plsel button{display:flex;align-items:center;gap:7px;border:1px solid var(--bd);background:none;color:var(--mu);border-radius:999px;padding:8px 13px;font:600 15px system-ui;font-family:inherit;cursor:pointer;font-variant-numeric:tabular-nums}
+.plsel button i{width:12px;height:12px;border-radius:3px;display:inline-block;box-shadow:inset 0 0 0 1px rgba(255,255,255,.3)}
+.plsel button.on{background:var(--ac2);color:var(--tx);border-color:var(--ac)}
 @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 </style>
 </head>
@@ -349,6 +354,7 @@ body.summary .tabs,body.summary main>section:not(#sum){display:none}
   <div style="margin-top:10px"><label for="pw2">One Rep Max (kg)</label><input id="pw2" type="number" inputmode="decimal" step="0.5" min="0"></div>
   <button class="btn" id="pradd">PR speichern</button>
  </div>
+ <div class="card"><h2>Scheiben in deinem Gym</h2><div class="hint" style="margin:0 0 6px">Tippe an, welche Scheiben es bei euch gibt (in kg). Die Hantel bei deinen PRs wird damit neu berechnet.</div><div class="plsel" id="plsel"></div></div>
  <div class="card"><h2>Deine PRs</h2><div id="prl"></div></div>
 </section>
 
@@ -422,7 +428,7 @@ function render(){
  var ks=Object.keys(days).sort().reverse();
  $("histBox").innerHTML=ks.length?ks.map(function(d){return'<div class="day">'+fmtD(d)+d.slice(0,4)+'</div>'+days[d].map(function(s){return'<div class="chip"><span><b>'+esc(s.ex)+'</b> · '+s.w+' kg × '+s.r+'</span><button class="x" data-id="'+s.id+'" aria-label="Löschen">×</button></div>'}).join("")}).join(""):'<div class="empty">Noch keine Einträge.</div>';
  document.querySelectorAll(".x[data-id]").forEach(function(b){b.onclick=function(){data=data.filter(function(s){return String(s.id)!==b.dataset.id});save();render()}});
- var sel=$("pex"),cur=sel.value,ex=exercises();
+ var sel=$("pex"),cur=sel.value,ex=exercises();plan.days.forEach(function(d){d.ex.forEach(function(e){var n=(e.name||"").trim();if(n&&ex.indexOf(n)<0)ex.push(n)})});ex.sort();
  sel.innerHTML=ex.map(function(e){return'<option>'+esc(e)+'</option>'}).join("");
  if(ex.indexOf(cur)>-1)sel.value=cur;
  renderPR();
@@ -437,7 +443,7 @@ $("pex").onchange=drawChart;$("pw").onchange=drawChart;
 
 function drawChart(){
  var ex=$("pex").value,box=$("chart"),st=$("stats");
- if(!ex){box.innerHTML='<div class="empty">Trage Sätze ein, um deine Progression zu sehen.</div>';st.innerHTML="";return}
+ if(!ex){box.innerHTML='<div class="empty">Noch keine Daten. Hak im Training bei jedem geschafften Satz den Kreis ab, dann erscheint hier dein Verlauf.</div>';st.innerHTML="";return}
  var exs=data.filter(function(s){return s.ex===ex}),ws=[],pw=$("pw");
  exs.forEach(function(s){if(ws.indexOf(s.w)<0)ws.push(s.w)});ws.sort(function(a,b){return b-a});
  var cw=pw.value;pw.innerHTML=ws.map(function(w){return'<option value="'+w+'">'+w+' kg</option>'}).join("");
@@ -446,7 +452,7 @@ function drawChart(){
  var by={};exs.forEach(function(s){var o=by[s.d]=by[s.d]||{e:0,m:0,v:0,rp:0};o.e=Math.max(o.e,e1(s));o.m=Math.max(o.m,s.w);o.v+=s.w*s.r;if(String(s.w)===pw.value)o.rp=Math.max(o.rp,s.r)});
  var ds=Object.keys(by).sort().filter(function(d){return metric!=="reps"||by[d].rp>0}),key={e1rm:"e",max:"m",vol:"v",reps:"rp"}[metric],pts=ds.map(function(d){return{d:d,y:by[d][key]}});
  var unit=metric==="reps"?"Wdh.":"kg";
- if(pts.length<2){box.innerHTML='<div class="empty">Mindestens zwei Trainingstage'+(metric==="reps"?" mit diesem Gewicht":"")+' nötig, um einen Verlauf zu zeigen.</div>'}
+ if(pts.length<2){box.innerHTML='<div class="empty">'+(!exs.length?"Für diese Übung gibt es noch keine Sätze. Hak im Training bei jedem geschafften Satz den Kreis ab, dann erscheint hier dein Verlauf.":"Mindestens zwei Trainingstage"+(metric==="reps"?" mit diesem Gewicht":"")+" nötig, um einen Verlauf zu zeigen.")+'</div>'}
  else{
   var W=600,H=260,L=44,R=14,T=14,B=30,min=Math.min.apply(null,pts.map(function(p){return p.y})),max=Math.max.apply(null,pts.map(function(p){return p.y}));
   var pad=(max-min)*.15||max*.1||1;min=Math.max(0,min-pad);max+=pad;
@@ -953,7 +959,7 @@ function openRun(){document.body.classList.add("running");$("run").hidden=false;
 function closeRun(){closeSheet(false);document.body.classList.remove("running");$("run").hidden=true;stopTick();render()}
 
 var BULB='<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="var(--ac2)"/><path d="M12 6.5v7M8.8 9.7 12 6.5l3.2 3.2" fill="none" stroke="var(--ac)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.5 17.2h7" stroke="var(--ac)" stroke-width="2.2" stroke-linecap="round"/></svg>';
-function showEx(reset){var d=curDay(),pe=curEx();
+function showEx(reset){$("rMsg").classList.remove("warn");var d=curDay(),pe=curEx();
  if(!pe){run=null;saveRun();closeRun();return}
  var R=rowsFor(run.i),sg=suggest(pe),last=run.i===d.ex.length-1,all=R.length&&R.every(isDone);
  $("rPos").textContent=d.name+" · "+(run.i+1)+" von "+d.ex.length;
@@ -997,7 +1003,7 @@ function go(k){closeSheet(true);run.i=k;saveRun();$("rMsg").textContent="";showE
 function next(){if(run.i>=curDay().ex.length-1)finishRun();else go(run.i+1)}
 function toggle(k){var R=rowsFor(run.i),x=R[k],pe=curEx();
  if(isDone(x)){var id=x.id;data=data.filter(function(s){return s.id!==id});x.id=null;save();saveRun();refresh();return}
- if(x.w==null||!(x.r>0)){openSheet(k);return}
+ if(x.w==null||!(x.r>0)){openSheet(k,true);return}
  x.id=addSet(pe.name,x.w,x.r,run.id);save();saveRun();popK=k;$("rMsg").textContent="";
  try{navigator.vibrate&&navigator.vibrate(25)}catch(e){}
  startPause();
@@ -1024,29 +1030,29 @@ $("rNext2").onclick=next;$("rBack").onclick=closeRun;$("rEnd").onclick=finishRun
 $("rThumb").onclick=function(){comicPlay($("rThumb"))};
 
 // Drehrad: Zahl antippen, Wert wählen, „Fertig“. Offene Sätze danach übernehmen den neuen Wert.
-var shK=-1;
+var shK=-1,shTick=false;
 function wheel(el,vals,cur,fmt){el.innerHTML='<div class="pad"></div>'+vals.map(function(v,i){return'<div data-i="'+i+'">'+fmt(v)+'</div>'}).join("")+'<div class="pad"></div>';
  el._vals=vals;var i=vals.indexOf(cur);if(i<0)i=0;el._start=i;
  el.onclick=function(e){var d=e.target.closest("[data-i]");if(d)el.scrollTo({top:+d.dataset.i*40,behavior:"smooth"})}}
 function wheelVal(el){var i=Math.max(0,Math.min(el._vals.length-1,Math.round(el.scrollTop/40)));return el._vals[i]}
-function openSheet(k){var R=rowsFor(run.i),x=R[k],pe=curEx(),sg=suggest(pe),st=pe.step>0?pe.step:2.5,cw=x.w!=null?x.w:(sg.w!=null?sg.w:20),ws=[];
+function openSheet(k,andDone){var R=rowsFor(run.i),x=R[k],pe=curEx(),sg=suggest(pe),st=pe.step>0?pe.step:2.5,cw=x.w!=null?x.w:(sg.w!=null?sg.w:20),ws=[];
  for(var v=0;v<=Math.max(300,cw+50);v=Math.round((v+st)*100)/100)ws.push(v);
  if(ws.indexOf(cw)<0){ws.push(cw);ws.sort(function(a,b){return a-b})}
  var rs=[];for(var r=1;r<=50;r++)rs.push(r);
- shK=k;$("shT").textContent="Satz "+(k+1);
+ shK=k;shTick=!!andDone;$("shOk").textContent=andDone?"Abhaken":"Fertig";$("shT").textContent="Satz "+(k+1);
  wheel($("whW"),ws,cw,fw);wheel($("whR"),rs,x.r||pe.max||8,String);
  $("sheet").hidden=false;
  requestAnimationFrame(function(){["whW","whR"].forEach(function(id){var el=$(id);el.scrollTop=el._start*40})});
  $("shOk").focus()}
-function closeSheet(apply){if($("sheet").hidden)return;
+function closeSheet(apply,tick){if($("sheet").hidden)return;
  // Werte lesen, solange das Rad noch sichtbar ist: ausgeblendet meldet es keine Scrollposition
- var w=wheelVal($("whW")),r=wheelVal($("whR"));$("sheet").hidden=true;if(!apply||shK<0||!run)return;
+ var w=wheelVal($("whW")),r=wheelVal($("whR"));$("sheet").hidden=true;var doTick=!!tick&&shTick&&apply&&shK>=0&&!!run;shTick=false;if(!apply||shK<0||!run)return;
  var R=rowsFor(run.i),x=R[shK];
  x.w=w;x.r=r;
  if(isDone(x))data.forEach(function(s){if(s.id===x.id){s.w=w;s.r=r}});
  for(var j=shK+1;j<R.length;j++)if(!isDone(R[j])){R[j].w=w;R[j].r=r}
- save();saveRun();shK=-1;refresh()}
-$("shOk").onclick=function(){closeSheet(true)};
+ save();saveRun();var kk=shK;shK=-1;refresh();if(doTick){var X=rowsFor(run.i)[kk];if(X&&!isDone(X))toggle(kk)}}
+$("shOk").onclick=function(){closeSheet(true,true)};
 $("sheet").addEventListener("click",function(e){if(e.target===$("sheet"))closeSheet(true)});
 document.addEventListener("keydown",function(e){if(e.key==="Escape")closeSheet(true)});
 
@@ -1070,7 +1076,9 @@ function maxOf(a){return a.length?Math.max.apply(null,a):0}
 function grouped(ss){var o=[];ss.forEach(function(s){var l=o[o.length-1];if(l&&l.w===s.w)l.r.push(s.r);else o.push({w:s.w,r:[s.r]})});
  return o.map(function(g){return fw(g.w)+" kg × "+g.r.join(", ")}).join(" · ")}
 function finishRun(){closeSheet(true);var d=curDay(),id=run.id,ss=data.filter(function(s){return s.run===id});
- if(!ss.length){run=null;saveRun();closeRun();return}
+ if(!ss.length){
+  if(!run.warned){run.warned=true;saveRun();var m=$("rMsg");m.textContent="Du hast noch keinen Satz abgehakt, deshalb würde nichts gespeichert. Tippe bei jedem geschafften Satz auf den Kreis. Zum Verlassen tippe nochmal auf „Beenden“.";m.classList.add("warn");try{m.scrollIntoView({block:"center",behavior:"smooth"})}catch(e){}return}
+  run=null;saveRun();closeRun();return}
  d.last=today();plan.lastDay=run.day;savePlan();
  var dur=Date.now()-run.start,vol=0,names=[],pbs=0;
  ss.forEach(function(s){vol+=s.w*s.r;if(names.indexOf(s.ex)<0)names.push(s.ex)});
@@ -1155,16 +1163,21 @@ $("pradd").onclick=function(){var ex=$("pex2").value.trim(),w=parseFloat($("pw2"
  prs.push({id:Date.now()+Math.random(),d:today(),ex:ex,w:w});saveP();$("pw2").value="";renderPR()};
 // Rekord-Hantel: der Rekord als beladene Langhantel in den üblichen Studio-Farben (Stange 20 kg).
 // Die Scheiben gleiten beim Öffnen sanft auf die Stange, danach zieht ab und zu ein Glanz darüber.
+var PLK="gymtrack_cfg_v1",cfgm=null,ALLPL=[25,20,15,10,5,2.5,1.25];
+function loadCfg(){try{var s=JSON.parse(localStorage.getItem(PLK)||"null");if(s&&Array.isArray(s.plates)&&s.plates.length)return s}catch(e){}return cfgm||{plates:ALLPL.slice()}}
+var cfg=loadCfg();
+function saveCfg(){try{localStorage.setItem(PLK,JSON.stringify(cfg))}catch(e){cfgm=cfg}cloud()}
 var PLATES=[[25,"#e53935",60,10],[20,"#1e63d6",56,9],[15,"#f4c20d",50,8],[10,"#2e9e44",44,7],[5,"#f2f2f2",34,6],[2.5,"#3a3a3c",28,5],[1.25,"#c7c7cc",22,4]];
 function platesFor(w){var side=Math.round((w-20)/2*100)/100,out=[];
- PLATES.forEach(function(p){while(side>=p[0]-.001){out.push(p);side=Math.round((side-p[0])*100)/100}});out.rest=side>0?side:0;return out}
+ PLATES.forEach(function(p){if(cfg.plates.indexOf(p[0])<0)return;while(side>=p[0]-.001){out.push(p);side=Math.round((side-p[0])*100)/100}});out.rest=side>0?side:0;return out}
 function barbellSVG(w,uid){var ps=platesFor(w),cy=36,xl=104,xr=196,L="",R="",clip="";
- ps.forEach(function(p,i){var t=p[3],h=p[2],y=cy-h/2,d=i*.12,T=(d+.7).toFixed(2),k=(d/(d+.7)).toFixed(3);xl-=t+1;
+ var sum=0;ps.forEach(function(p){sum+=p[3]+1});var sc=sum>86?86/sum:1;
+ ps.forEach(function(p,i){var t=p[3]*sc,h=p[2],y=cy-h/2,d=Math.min(i,8)*.12,T=(d+.7).toFixed(2),k=(d/(d+.7)).toFixed(3);xl-=t+sc;
   var at=' y="'+y+'" width="'+t+'" height="'+h+'" rx="2" fill="'+p[1]+'" stroke="#000" stroke-opacity=".55" stroke-width="1"';
   function an(dx){return'<animateTransform attributeName="transform" type="translate" values="'+dx+' 0;'+dx+' 0;0 0" keyTimes="0;'+k+';1" calcMode="spline" keySplines="0 0 1 1;.2 .8 .3 1" dur="'+T+'s" fill="freeze"/>'+
    '<animate attributeName="opacity" values="0;0;1" keyTimes="0;'+k+';1" dur="'+T+'s" fill="freeze"/>'}
   L+='<rect x="'+xl+'"'+at+'>'+an(-30)+'</rect>';R+='<rect x="'+xr+'"'+at+'>'+an(30)+'</rect>';
-  clip+='<rect x="'+xl+'" y="'+y+'" width="'+t+'" height="'+h+'"/><rect x="'+xr+'" y="'+y+'" width="'+t+'" height="'+h+'"/>';xr+=t+1});
+  clip+='<rect x="'+xl+'" y="'+y+'" width="'+t+'" height="'+h+'"/><rect x="'+xr+'" y="'+y+'" width="'+t+'" height="'+h+'"/>';xr+=t+sc});
  return'<svg viewBox="0 0 300 72" role="img" aria-label="Langhantel mit '+fw(w)+' kg">'+
   '<defs><linearGradient id="gl'+uid+'" x1="0" x2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".5"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><clipPath id="cp'+uid+'">'+clip+'</clipPath></defs>'+
   '<rect x="14" y="'+(cy-3)+'" width="272" height="6" rx="3" fill="#8e8e93"/><rect x="104" y="'+(cy-8)+'" width="6" height="16" rx="2" fill="#636366"/><rect x="190" y="'+(cy-8)+'" width="6" height="16" rx="2" fill="#636366"/>'+
@@ -1173,8 +1186,13 @@ function plateLegend(w){var ps=platesFor(w),g=[];ps.forEach(function(p){var l=g[
  if(!g.length)return'<span>Nur die Stange (20 kg)</span>';
  return'<span>Pro Seite:</span>'+g.map(function(x){return'<span class="pp"><i style="background:'+x.p[1]+'"></i>'+(x.n>1?x.n+" × ":"")+fw(x.p[0])+' kg</span>'}).join("")+
   (ps.rest?'<span>+ '+fw(ps.rest*2)+' kg passen in keine Scheibe</span>':'')}
+function renderPlSel(){var el=$("plsel");if(!el)return;
+ el.innerHTML=PLATES.map(function(p){var on=cfg.plates.indexOf(p[0])>-1;return'<button type="button" data-pl="'+p[0]+'" class="'+(on?"on":"")+'" aria-pressed="'+on+'"><i style="background:'+p[1]+'"></i>'+fw(p[0])+'</button>'}).join("")}
+$("plsel").addEventListener("click",function(e){var b=e.target.closest("[data-pl]");if(!b)return;var v=+b.dataset.pl,i=cfg.plates.indexOf(v);
+ if(i>-1){if(cfg.plates.length<2)return;cfg.plates.splice(i,1)}else cfg.plates.push(v);
+ cfg.plates.sort(function(a,b){return b-a});saveCfg();renderPR()});
 function renderPR(){
- var m={};prs.forEach(function(p){(m[p.ex]=m[p.ex]||[]).push(p)});var ks=Object.keys(m).sort();
+ renderPlSel();var m={};prs.forEach(function(p){(m[p.ex]=m[p.ex]||[]).push(p)});var ks=Object.keys(m).sort();
  $("prl").innerHTML=ks.length?ks.map(function(k,ix){
   var a=m[k].sort(function(x,y){return x.d<y.d?-1:x.d>y.d?1:x.id-y.id}),l=a[a.length-1],prev=a.length>1?a[a.length-2].w:null,est=0,df=prev===null?0:l.w-prev;
   data.forEach(function(s){if(s.ex===k)est=Math.max(est,e1(s))});
@@ -1277,7 +1295,7 @@ function renderBkHint(){var el=$("bkHint");if(!el)return;var t=lastBackup(),days
 // Cloud-Speicher (db) + Backup
 var dbDoc=null,syncT=null;
 function status(t){$("sync").textContent=t}
-function cloud(){if(!dbDoc)return;clearTimeout(syncT);status("☁️ Speichert …");syncT=setTimeout(function(){dbDoc.set({sets:data,prs:prs,plan:plan,bw:bwd,updated:Date.now()}).then(function(){status("☁️ Gespeichert")}).catch(function(){status("⚠️ Nur auf diesem Gerät gespeichert")})},600)}
+function cloud(){if(!dbDoc)return;clearTimeout(syncT);status("☁️ Speichert …");syncT=setTimeout(function(){dbDoc.set({sets:data,prs:prs,plan:plan,bw:bwd,cfg:cfg,updated:Date.now()}).then(function(){status("☁️ Gespeichert")}).catch(function(){status("⚠️ Nur auf diesem Gerät gespeichert")})},600)}
 (async function(){
  // Als eigene App (ohne Claude) bleiben die Daten auf dem Gerät; der Browser soll sie dauerhaft behalten
  if(!window.claude||!claude.use){status("Auf diesem Gerät gespeichert. Sichere ab und zu ein Backup.");
@@ -1291,9 +1309,10 @@ function cloud(){if(!dbDoc)return;clearTimeout(syncT);status("☁️ Speichert �
   var snap=await dbDoc.get();
   if(snap.exists){var d=snap.data()||{};data=Array.isArray(d.sets)?d.sets:[];prs=Array.isArray(d.prs)?d.prs:[];
    if(d.bw&&Array.isArray(d.bw.list))bwd=d.bw;else if(bwd.list.length)cloud();
+   if(d.cfg&&Array.isArray(d.cfg.plates)&&d.cfg.plates.length)cfg=d.cfg;
    if(validPlan(d.plan))plan=d.plan;else if(!plan.example)cloud();
    if(run&&!plan.days[run.day]){run=null;saveRun();document.body.classList.remove("running");$("run").hidden=true}
-   try{localStorage.setItem(KEY,JSON.stringify(data));localStorage.setItem(K2,JSON.stringify(prs));localStorage.setItem(PK,JSON.stringify(plan));localStorage.setItem(BK,JSON.stringify(bwd))}catch(e){}
+   try{localStorage.setItem(KEY,JSON.stringify(data));localStorage.setItem(K2,JSON.stringify(prs));localStorage.setItem(PK,JSON.stringify(plan));localStorage.setItem(BK,JSON.stringify(bwd));localStorage.setItem(PLK,JSON.stringify(cfg))}catch(e){}
    if(!plan.example&&!$("tpl").hidden){markTpl();closeTpl()}
    render();status("☁️ Synchronisiert")}
   else if(data.length||prs.length||bwd.list.length||!plan.example){cloud()}
@@ -1301,7 +1320,7 @@ function cloud(){if(!dbDoc)return;clearTimeout(syncT);status("☁️ Speichert �
  }catch(e){status("Nur auf diesem Gerät gespeichert")}
 })();
 // Backup: in Claude über die Download-Funktion, als eigene App über das Teilen-Menü (z. B. „In Dateien sichern“) oder als Download
-$("exp").onclick=async function(){var name="gymtrack-backup-"+today()+".json",json=JSON.stringify({v:3,sets:data,prs:prs,plan:plan,bw:bwd});
+$("exp").onclick=async function(){var name="gymtrack-backup-"+today()+".json",json=JSON.stringify({v:4,sets:data,prs:prs,plan:plan,bw:bwd,cfg:cfg});
  try{
   if(window.claude&&claude.use){var dl=await claude.use("downloads");if(dl){await dl.save({filename:name,data:json});backedUp();return}}
   var file=new File([json],name,{type:"application/json"});
@@ -1315,6 +1334,7 @@ $("impf").onchange=function(){var f=this.files[0];if(!f)return;var inp=this,r=ne
  (j.sets||[]).forEach(function(s){if(s&&s.ex&&!ids[s.id]&&isFinite(+s.w)&&+s.r>0){var o={id:s.id||Date.now()+Math.random(),d:String(s.d||today()),ex:String(s.ex),w:+s.w,r:+s.r};if(s.run)o.run=String(s.run);data.push(o);n++}});
  (j.prs||[]).forEach(function(p){if(p&&p.ex&&!pi[p.id]&&+p.w>0)prs.push({id:p.id||Date.now()+Math.random(),d:String(p.d||today()),ex:String(p.ex),w:+p.w})});
  (j.bw&&j.bw.list||[]).forEach(function(e){if(e&&+e.kg>0&&!bwd.list.some(function(x){return x.id===e.id||x.d===e.d}))bwd.list.push({id:e.id||Date.now()+Math.random(),d:String(e.d||today()),kg:+e.kg})});
+ if(j.cfg&&Array.isArray(j.cfg.plates)){var pl=j.cfg.plates.map(Number).filter(function(x){return ALLPL.indexOf(x)>-1});if(pl.length){cfg={plates:pl.sort(function(a,b){return b-a})};saveCfg()}}
  if(validPlan(j.plan)&&plan.example){plan=j.plan;savePlan()}
  save();saveP();saveBwd();render();$("bmsg").textContent=n+" Sätze importiert ✓"}catch(e){$("bmsg").textContent="Datei konnte nicht gelesen werden."}};r.readAsText(f);inp.value=""};
 setPage("train");render();
